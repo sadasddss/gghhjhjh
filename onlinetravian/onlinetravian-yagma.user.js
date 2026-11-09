@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OnlineTravian Yağma Yardımcısı
 // @namespace    local.onlinetravian.yagma
-// @version      1.1.0
+// @version      1.2.0
 // @description  Mevcut tek yağma listesini en az 5 dakika arayla çalıştırır; belirsizlikte durur.
 // @match        https://100000.onlinetravian.com/*
 // @grant        none
@@ -23,14 +23,22 @@
     const m = s.match(/(\d+):(\d{2}):(\d{2})/);
     return m ? Number(m[1])*3600 + Number(m[2])*60 + Number(m[3]) : 0;
   };
-  const read = () => JSON.parse(localStorage.getItem(PREFIX+'state') || '{"next":0,"pending":0}');
+  const read = () => {
+    const data = JSON.parse(localStorage.getItem(PREFIX+'state') || '{"next":0,"pending":0}');
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Kayıt verisi bozuk.');
+    if (!Number.isFinite(data.next) || !Number.isFinite(data.pending)) throw new Error('Bekleme kaydı bozuk.');
+    return data;
+  };
   const write = s => localStorage.setItem(PREFIX+'state', JSON.stringify(s));
-  const running = () => sessionStorage.getItem(PREFIX+'enabled') === '1';
+  const running = () => sessionStorage.getItem(PREFIX+'enabled-v12') === '1';
   const panel = document.createElement('section');
   panel.id = 'ot-raid-panel';
   panel.style.cssText = 'position:fixed;bottom:12px;left:12px;z-index:2147483647;width:320px;max-width:90vw;max-height:75vh;overflow:auto;padding:14px;background:#17232c;color:white;border:2px solid #81c784;border-radius:12px;font:14px/1.5 sans-serif;box-shadow:0 2px 15px #0008';
-  panel.innerHTML = '<strong>Yağma yardımcısı · 5 dk</strong><div id="ot-raid-status" style="margin:8px 0">Durduruldu</div><div id="ot-raid-stats" style="padding:8px;background:#243843;border-radius:8px;margin-bottom:8px"></div><button type="button" id="ot-raid-start">Başlat</button> <button type="button" id="ot-raid-stop">Durdur</button><details open><summary style="margin-top:10px;cursor:pointer">İşlem kayıtları</summary><div id="ot-raid-log" style="max-height:160px;overflow:auto;font-size:12px"></div></details><div style="font-size:11px;margin-top:8px">Bu sekmeyi açık tut. Android ekranı kapatınca çalışmayı askıya alabilir.</div>';
-  document.body.append(panel);
+  panel.innerHTML = '<strong>Yağma paneli · v1.2.0</strong><div id="ot-raid-status" style="margin:8px 0">Hazır — başlatmanı bekliyor.</div><div id="ot-raid-stats" style="padding:8px;background:#243843;border-radius:8px;margin-bottom:8px"></div><button type="button" id="ot-raid-start">5 dk döngü başlat</button><button type="button" id="ot-raid-once">Tek tur gönder</button> <button type="button" id="ot-raid-stop">Durdur</button><button type="button" id="ot-raid-check">Kontrol et</button><div id="ot-raid-heartbeat" style="font-size:12px"></div><details open><summary style="margin-top:10px;cursor:pointer">İşlem kayıtları</summary><div id="ot-raid-log" style="max-height:160px;overflow:auto;font-size:12px"></div></details><div style="font-size:11px;margin-top:8px">Bu sekmeyi açık tut. Android ekranı kapatınca çalışmayı askıya alabilir.</div>';
+  (document.body || document.documentElement).append(panel);
+  const css = document.createElement('style');
+  css.textContent = '#ot-raid-panel{display:block!important;visibility:visible!important;opacity:1!important;position:fixed!important;top:12px!important;right:12px!important;bottom:auto!important;left:auto!important;z-index:2147483647!important;box-sizing:border-box!important;color:white!important;background:#17232c!important}#ot-raid-panel button{display:inline-block!important;width:auto!important;height:auto!important;background:#e7f5ec!important;color:#102a1c!important;font:600 14px sans-serif!important;padding:10px!important;margin:4px!important;float:none!important;position:static!important}';
+  document.documentElement.append(css);
   const status = panel.querySelector('#ot-raid-status');
   for (const b of panel.querySelectorAll('button')) b.style.cssText = 'padding:10px 16px;cursor:pointer;border-radius:6px;border:0;font-size:15px';
   const stamp = time => time ? new Date(time).toLocaleTimeString('tr-TR') : '—';
@@ -53,8 +61,8 @@
     data.logs = [...(data.logs || []), {time: Date.now(), message}].slice(-100);
     write(data); render();
   };
-  const show = message => { status.textContent = message; render(); };
-  const stop = message => { sessionStorage.removeItem(PREFIX+'enabled'); show(message); try { log(message); } catch (_) {} };
+  const show = message => { status.textContent = message; try { render(); } catch(e) { status.textContent += ' | Kayıt hatası: ' + e.message; } };
+  const stop = message => { try { sessionStorage.removeItem(PREFIX+'enabled-v12'); } catch (_) {} show(message); try { log(message); } catch (_) {} };
   const blocked = () => {
     if ([...document.querySelectorAll('input[type="password"]')].some(visible)) return 'Oturum kapandı. Giriş yapıp tekrar Başlat’a bas.';
     if ([...document.querySelectorAll('iframe[src*="captcha"],iframe[src*="challenges.cloudflare"],input[name*="captcha"],.g-recaptcha,.h-captcha,.cf-turnstile')].some(visible)) return 'Doğrulama ekranı var. Kendin tamamlayıp tekrar başlat.';
@@ -69,9 +77,10 @@
   ));
   let missingSince = 0, openingAt = 0, busy = false;
   async function tick() {
-    if (!running() || busy) return;
+    if (busy) return;
     busy = true;
     try {
+      if (!running()) return;
       if (!navigator.locks) return stop('Bu tarayıcı sekme kilidini desteklemiyor. Güncel Firefox/Chrome kullan.');
       await navigator.locks.request(PREFIX+'send', {ifAvailable:true}, async lock => {
         if (!lock || !running()) return;
@@ -100,6 +109,7 @@
             state.next = Math.max(state.next, now + countdown*1000 + 2000);
             write(state);
             log('Tur doğrulandı: ' + (state.lastTargets || 0) + ' hedef; site sayacı başladı.');
+            if (sessionStorage.getItem(PREFIX+'mode') === 'once') return stop('Tek tur doğrulandı. Durduruldu.');
             show('Gönderim sonrası sayaç doğrulandı. Bekleniyor…');
             return;
           }
@@ -126,19 +136,41 @@
     } catch (e) { stop('Hata: ' + e.message); }
     finally { busy = false; }
   }
-  panel.querySelector('#ot-raid-start').onclick = () => {
+  const start = mode => {
     try {
-      if (!onList) return show('Önce Askerî Üs → Yağma Listesi sayfasını aç.');
+      const issue = blocked();
+      if (issue) return stop(issue);
+      if (!navigator.locks) return show('Sekme kilidi kullanılamıyor. Güncel Firefox veya Chrome gerekli.');
       const state = read();
-      // Kullanıcı yeniden başlatırsa belirsiz deneme silinir, 5 dk sınırı korunur.
       if (state.pending && Date.now()-state.pending > VERIFY) { state.pending=0; write(state); }
-      sessionStorage.setItem(PREFIX+'enabled','1');
-      missingSince = 0; openingAt = 0;
-      log('Başlatıldı'); show('Başlatıldı'); tick();
-    } catch(e) { show('Depolama erişimi yok: '+e.message); }
+      sessionStorage.setItem(PREFIX+'mode',mode);
+      sessionStorage.setItem(PREFIX+'enabled-v12','1');
+      missingSince=0; openingAt=0;
+      log(mode === 'once' ? 'Tek tur istendi.' : '5 dakika döngüsü başlatıldı.');
+      if (!onList) {
+        show('Yağma listesi açılıyor…');
+        location.assign('/build.php?id=39&t=99');
+        return;
+      }
+      show('Başlatıldı'); tick();
+    } catch(e) { stop('Başlatılamadı: '+e.message); }
   };
-  panel.querySelector('#ot-raid-stop').onclick = () => stop('Durduruldu');
-  try { render(); } catch (_) {}
-  setInterval(tick,1000);
+  panel.querySelector('#ot-raid-start').onclick = () => start('loop');
+  panel.querySelector('#ot-raid-once').onclick = () => start('once');
+  panel.querySelector('#ot-raid-stop').onclick = () => stop('Sen durdurdun. Yeni tur gönderilmeyecek.');
+  panel.querySelector('#ot-raid-check').onclick = () => {
+    try {
+      const issue=blocked(); const state=read();
+      show('Kontrol: '+(issue || (onList ? 'Yağma listesi açık' : 'Başlatınca yağma listesine geçilecek'))+
+        ' | Gönderme düğmesi: '+buttons().length+' | Seçim kutusu: '+getSelectAll().length+
+        ' | Sekme kilidi: '+(navigator.locks ? 'var' : 'yok')+
+        ' | Bekleme: '+Math.max(0,Math.ceil((state.next-Date.now())/1000))+' sn');
+    } catch(e) { show('Kontrol hatası: '+e.message); }
+  };
+  try { render(); } catch(e) { show('Kayıt okunamadı: '+e.message); }
+  setInterval(() => {
+    panel.querySelector('#ot-raid-heartbeat').textContent='Panel çalışıyor · '+stamp(Date.now());
+    tick();
+  },1000);
   tick();
 })();
