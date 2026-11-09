@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OnlineTravian Yağma Yardımcısı
 // @namespace    local.onlinetravian.yagma
-// @version      1.2.1
-// @description  Mevcut tek yağma listesini en az 5 dakika arayla çalıştırır; belirsizlikte durur.
+// @version      1.3.0
+// @description  Otomatik devreye girer; mevcut tek yağma listesini en az 5 dakika arayla gönderir. Durdur ayarı kalıcıdır.
 // @match        https://100000.onlinetravian.com/*
 // @grant        none
 // @run-at       document-idle
@@ -30,11 +30,24 @@
     return data;
   };
   const write = s => localStorage.setItem(PREFIX+'state', JSON.stringify(s));
-  const running = () => sessionStorage.getItem(PREFIX+'enabled-v12') === '1';
+  // Bu sürüm otomatik çalışır; Durdur tüm sekmelerde ve yenilemede korunur.
+  const CONTROL = PREFIX+'auto-v13', LEASE = PREFIX+'owner-v13', LEASE_MS = 12000;
+  const owner = crypto.randomUUID();
+  const running = () => localStorage.getItem(CONTROL) !== '0';
+  const ownsLease = () => {
+    const data = JSON.parse(localStorage.getItem(LEASE) || 'null');
+    if (data && data.id !== owner && data.until > Date.now()) return false;
+    localStorage.setItem(LEASE, JSON.stringify({id:owner, until:Date.now()+LEASE_MS}));
+    return true;
+  };
+  const releaseLease = () => {
+    const data = JSON.parse(localStorage.getItem(LEASE) || 'null');
+    if (data?.id === owner) localStorage.removeItem(LEASE);
+  };
   const panel = document.createElement('section');
   panel.id = 'ot-raid-panel';
   panel.style.cssText = 'position:fixed;bottom:12px;left:12px;z-index:2147483647;width:320px;max-width:90vw;max-height:75vh;overflow:auto;padding:14px;background:#17232c;color:white;border:2px solid #81c784;border-radius:12px;font:14px/1.5 sans-serif;box-shadow:0 2px 15px #0008';
-  panel.innerHTML = '<strong>Yağma paneli · v1.2.1</strong><div id="ot-raid-status" style="margin:8px 0">Hazır — başlatmanı bekliyor.</div><div id="ot-raid-stats" style="padding:8px;background:#243843;border-radius:8px;margin-bottom:8px"></div><button type="button" id="ot-raid-start">5 dk döngü başlat</button><button type="button" id="ot-raid-once">Tek tur gönder</button> <button type="button" id="ot-raid-stop">Durdur</button><button type="button" id="ot-raid-check">Kontrol et</button><div id="ot-raid-countdown" style="padding:10px 0;font-size:18px;font-weight:bold"></div><div id="ot-raid-heartbeat" style="font-size:12px"></div><details open><summary style="margin-top:10px;cursor:pointer">İşlem kayıtları</summary><div id="ot-raid-log" style="max-height:160px;overflow:auto;font-size:12px"></div></details><div style="font-size:11px;margin-top:8px">Bu sekmeyi açık tut. Android ekranı kapatınca çalışmayı askıya alabilir.</div>';
+  panel.innerHTML = '<strong>Yağma paneli · v1.3.0</strong><div id="ot-raid-status" style="margin:8px 0">Otomatik durum kontrol ediliyor…</div><div id="ot-raid-stats" style="padding:8px;background:#243843;border-radius:8px;margin-bottom:8px"></div><button type="button" id="ot-raid-start">Otomatiği aç</button> <button type="button" id="ot-raid-stop">Durdur</button><button type="button" id="ot-raid-check">Kontrol et</button><div id="ot-raid-countdown" style="padding:10px 0;font-size:18px;font-weight:bold"></div><div id="ot-raid-heartbeat" style="font-size:12px"></div><details open><summary style="margin-top:10px;cursor:pointer">İşlem kayıtları</summary><div id="ot-raid-log" style="max-height:160px;overflow:auto;font-size:12px"></div></details><div style="font-size:11px;margin-top:8px">Bu sekmeyi açık tut. Android ekranı kapatınca çalışmayı askıya alabilir.</div>';
   (document.body || document.documentElement).append(panel);
   const css = document.createElement('style');
   css.textContent = '#ot-raid-panel{display:block!important;visibility:visible!important;opacity:1!important;position:fixed!important;top:12px!important;right:12px!important;bottom:auto!important;left:auto!important;z-index:2147483647!important;box-sizing:border-box!important;color:white!important;background:#17232c!important}#ot-raid-panel button{display:inline-block!important;width:auto!important;height:auto!important;background:#e7f5ec!important;color:#102a1c!important;font:600 14px sans-serif!important;padding:10px!important;margin:4px!important;float:none!important;position:static!important}';
@@ -67,12 +80,12 @@
       const remaining = Math.max(0, Math.ceil((read().next - Date.now()) / 1000));
       const clock = String(Math.floor(remaining / 60)).padStart(2,'0') + ':' + String(remaining % 60).padStart(2,'0');
       output.textContent = running()
-        ? (remaining ? 'Sonraki gönderime kalan: ' + clock : 'Gönderim zamanı geldi — kontroller bekleniyor')
+        ? (remaining ? 'Sonraki gönderime kalan: ' + clock : 'Süre doldu · Otomatik gönderiliyor…')
         : (remaining ? 'Durduruldu · Bekleme: ' + clock : 'Durduruldu · Başlatmanı bekliyor');
     } catch (_) { output.textContent = 'Sayaç okunamadı — Kontrol et düğmesine bas.'; }
   };
   const show = message => { status.textContent = message; updateCountdown(); try { render(); } catch(e) { status.textContent += ' | Kayıt hatası: ' + e.message; } };
-  const stop = message => { try { sessionStorage.removeItem(PREFIX+'enabled-v12'); } catch (_) {} show(message); try { log(message); } catch (_) {} };
+  const stop = message => { try { localStorage.setItem(CONTROL,'0'); releaseLease(); } catch (_) {} show(message); try { log(message); } catch (_) {} };
   const blocked = () => {
     if ([...document.querySelectorAll('input[type="password"]')].some(visible)) return 'Oturum kapandı. Giriş yapıp tekrar Başlat’a bas.';
     if ([...document.querySelectorAll('iframe[src*="captcha"],iframe[src*="challenges.cloudflare"],input[name*="captcha"],.g-recaptcha,.h-captcha,.cf-turnstile')].some(visible)) return 'Doğrulama ekranı var. Kendin tamamlayıp tekrar başlat.';
@@ -94,17 +107,25 @@
       if (!navigator.locks) return stop('Bu tarayıcı sekme kilidini desteklemiyor. Güncel Firefox/Chrome kullan.');
       await navigator.locks.request(PREFIX+'send', {ifAvailable:true}, async lock => {
         if (!lock || !running()) return;
+        if (!ownsLease()) return show('Otomatik açık · Diğer sekme gönderimleri yönetiyor.');
         const issue = blocked();
         if (issue) return stop(issue);
-        if (!onList) return stop('Yağma Listesi sayfasını açıp Başlat’a bas.');
         const now = Date.now(), state = read();
+        if (!onList) {
+          // Köy ekranına geçmek otomatiği kapatmaz. Süre dolunca listeye dönülür.
+          if (now < state.next) return show('Otomatik açık · Süre dolunca yağma listesine geçilecek.');
+          show('Süre doldu · Yağma listesine geçiliyor…');
+          releaseLease();
+          location.assign('/build.php?id=39&t=99');
+          return;
+        }
         const targets = buttons();
         if (targets.length > 1) return stop('Birden fazla liste açık. Sadece kullanacağın listeyi açık bırak.');
         const button = targets[0];
         if (!button) {
           // Birden fazla listeye tahminle tıklama: yalnızca tek Ayrıntılar denetimi desteklenir.
           const details = [...document.querySelectorAll('a,button,div,span')].filter(e => visible(e) && !panel.contains(e) && text(e) === 'Ayrıntılar' && ![...e.children].some(c => text(c) === 'Ayrıntılar'));
-          if (details.length === 1 && !openingAt) { openingAt = now; details[0].click(); return show('Liste açılıyor…'); }
+          if (details.length === 1 && !openingAt) { openingAt = now; show('Liste otomatik açılıyor…'); details[0].click(); return; }
           missingSince ||= now;
           if (now - missingSince > 15000) return stop('Liste veya Saldırı başlat düğmesi bulunamadı. Ayrıntılar’ı elle aç.');
           return show('Yağma listesi bekleniyor…');
@@ -119,7 +140,6 @@
             state.next = Math.max(state.next, now + countdown*1000 + 2000);
             write(state);
             log('Tur doğrulandı: ' + (state.lastTargets || 0) + ' hedef; site sayacı başladı.');
-            if (sessionStorage.getItem(PREFIX+'mode') === 'once') return stop('Tek tur doğrulandı. Durduruldu.');
             show('Gönderim sonrası sayaç doğrulandı. Bekleniyor…');
             return;
           }
@@ -146,38 +166,31 @@
     } catch (e) { stop('Hata: ' + e.message); }
     finally { busy = false; }
   }
-  const start = mode => {
+  const start = () => {
     try {
       const issue = blocked();
       if (issue) return stop(issue);
       if (!navigator.locks) return show('Sekme kilidi kullanılamıyor. Güncel Firefox veya Chrome gerekli.');
       const state = read();
       if (state.pending && Date.now()-state.pending > VERIFY) { state.pending=0; write(state); }
-      sessionStorage.setItem(PREFIX+'mode',mode);
-      sessionStorage.setItem(PREFIX+'enabled-v12','1');
+      localStorage.setItem(CONTROL,'1');
       missingSince=0; openingAt=0;
-      log(mode === 'once' ? 'Tek tur istendi.' : '5 dakika döngüsü başlatıldı.');
-      if (!onList) {
-        show('Yağma listesi açılıyor…');
-        location.assign('/build.php?id=39&t=99');
-        return;
-      }
-      show('Başlatıldı'); tick();
+      log('Otomatik açıldı. Sonraki turlar için yeniden basman gerekmiyor.');
+      show('Otomatik açık'); tick();
     } catch(e) { stop('Başlatılamadı: '+e.message); }
   };
-  panel.querySelector('#ot-raid-start').onclick = () => start('loop');
-  panel.querySelector('#ot-raid-once').onclick = () => start('once');
+  panel.querySelector('#ot-raid-start').onclick = start;
   panel.querySelector('#ot-raid-stop').onclick = () => stop('Sen durdurdun. Yeni tur gönderilmeyecek.');
   panel.querySelector('#ot-raid-check').onclick = () => {
     try {
       const issue=blocked(); const state=read();
-      show('Kontrol: '+(issue || (onList ? 'Yağma listesi açık' : 'Başlatınca yağma listesine geçilecek'))+
+      show('Kontrol: '+(issue || (onList ? 'Yağma listesi açık' : 'Süre dolunca listeye otomatik geçilecek'))+
         ' | Gönderme düğmesi: '+buttons().length+' | Seçim kutusu: '+getSelectAll().length+
         ' | Sekme kilidi: '+(navigator.locks ? 'var' : 'yok')+
         ' | Bekleme: '+Math.max(0,Math.ceil((state.next-Date.now())/1000))+' sn');
     } catch(e) { show('Kontrol hatası: '+e.message); }
   };
-  try { render(); } catch(e) { show('Kayıt okunamadı: '+e.message); }
+  try { show(running() ? 'Otomatik açık · Her tur kendiliğinden gönderilecek.' : 'Durduruldu · Otomatik gönderim kapalı.'); } catch(e) { show('Kayıt okunamadı: '+e.message); }
   updateCountdown();
   setInterval(() => {
     updateCountdown();
