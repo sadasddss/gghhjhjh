@@ -1,6 +1,6 @@
 # OnlineTravian Yağma Yardımcısı
 
-Sürüm 1.1.0 — Türkçe arayüz ve 100000.onlinetravian.com sunucusu.
+Sürüm 1.2.0 — Türkçe arayüz ve 100000.onlinetravian.com sunucusu.
 
 ## Kurulum
 
@@ -18,4 +18,9 @@ En az 5 dakika + 2 saniye ve site sayacının bitmesini bekler. Tek açık liste
 
 ## Doğrulama
 
-9 Kasım 2026: Canlı sayfada Hepsini Seç kutusu (raidListMarkAll1), Saldırı başlat düğmesi ve 98 hedef doğrulandı. Canlı DOM kopyası üzerinde jsdom ile 12 senaryo geçti. Bunlar seçim, gönderim sayacı, bekleme süresi, durdurma, belirsiz gönderim, eksik seçim, giriş/CAPTCHA, iki sekme, mevcut sayaç, birden fazla liste ve bekleme kaydının korunmasını kapsar. Saat, kilit ve site yanıtları simüle edildi. JavaScript sözdizimi kontrolü geçti. Gerçek Android/Tampermonkey kurulumu ve canlı otomatik ikinci tur henüz doğrulanmadı.
+9 Kasım 2026: Canlı sayfada Hepsini Seç kutusu (raidListMarkAll1), Saldırı başlat düğmesi ve 98 hedef doğrulandı. Canlı DOM kopyası üzerinde jsdom ile 15 senaryo geçti. Bunlar seçim, gönderim sayacı, bekleme süresi, durdurma, belirsiz gönderim, eksik seçim, giriş/CAPTCHA, iki sekme, mevcut sayaç, birden fazla liste ve bekleme kaydının korunmasını kapsar. Saat, kilit ve site yanıtları simüle edildi. JavaScript sözdizimi kontrolü geçti. Gerçek Android/Tampermonkey kurulumu ve canlı otomatik ikinci tur henüz doğrulanmadı.
+
+
+## v1.2.0 paneli
+
+İlk kurulumda kullanıcı başlatana kadar gönderim yapmaz. Sağ üstteki panelde Tek tur gönder, 5 dk döngü başlat, Durdur ve Kontrol et bulunur. Köy ekranında Başlat yağma listesine yönlendirir. Tek tur modu sayaç doğrulanınca durur. Panel çalışıyor saati betiğin yüklendiğini gösterir. Panel görünmüyorsa Tampermonkey'de betiğin etkinliğini kontrol edip oyun sayfasını yenileyin. Eski betiğin ikinci kopyasını devre dışı bırakın. Yeni testler: elle başlatmayı bekleme, tek turdan sonra durma, bozuk kayıt hatasının görünmesi. Gerçek cihazda uçtan uca doğrulama henüz yapılmadı.
