@@ -1,30 +1,48 @@
 # OnlineTravian Yağma Yardımcısı
 
-Sürüm **1.3.0** — Türkçe arayüz ve `100000.onlinetravian.com` sunucusu.
+Sürüm **1.4.0** — Türkçe arayüz ve `100000.onlinetravian.com` sunucusu.
 
 ## Kurulum
 
-[Betik dosyasını kur / güncelle](https://github.com/sadasddss/gghhjhjh/raw/refs/heads/main/onlinetravian/onlinetravian-yagma.user.js).
-Tampermonkey ekranında güncellemeyi kaydet ve oyun sayfasını yenile. İkinci bir eski betik kopyası varsa devre dışı bırak. Panelin başlığında **v1.3.0** yazmalıdır.
+[Betik dosyasını kur / güncelle](https://github.com/sadasddss/gghhjhjh/raw/refs/heads/main/onlinetravian/onlinetravian-yagma.user.js?v=1.4.0).
+Tampermonkey ekranında güncellemeyi kaydet ve oyun sayfasını yenile. Panelin başlığında **v1.4.0** yazmalıdır. Eski ikinci bir betik kopyası varsa kapat. İlk açılışta bu sürüm otomatik çalışır. Eski sürümün hata nedeniyle kapattığı ayar bu sürümü kapatmaz.
 
-## Otomatik çalışma
+## Neden her defasında Otomatiği aç gerekiyordu?
 
-Bu sürüm ilk açılışta otomatik devreye girer; her tur için Başlat veya onay istemez. Kullanıcı Durdur'a basana kadar süre dolduğunda mevcut tek yağma listesini kendisi açar, hedefleri seçer ve gönderir. En az 5 dakika + 2 saniye bekler; sitenin kendi sayacı daha uzunsa onu da bekler.
+v1.3.0, site sayacını 20 saniyede okuyamazsa `stop()` çağırıp açık/kapalı kaydını kalıcı kapatıyordu. Önceki simülasyonlar bu davranışı beklenen sonuç kabul etmişti. v1.4.0'da geçici hata ile kullanıcının Durdur kararı ayrıldı.
 
-Köy ekranına geçmek veya sayfayı yenilemek döngüyü kapatmaz. Süre dolunca açık oyun sekmesini yağma listesine yönlendirir. Durdur ayarı tarayıcıda saklanır ve diğer sekmelerde de geçerlidir. Durdurduktan sonra yeniden çalıştırmak için Otomatiği aç düğmesine basılır. Zaten gönderilmiş askerler Durdur ile geri çağrılmaz.
+## Otomatik çalışma ve yeniden deneme
 
-Tek tur seçeneği kaldırıldı. Bir sekme gönderimleri yönetir; aynı tarayıcıdaki diğer sekmeler bekler. Yöneten sekme kapanır veya askıya alınırsa başka bir açık oyun sekmesi yaklaşık 12 saniye sonra yönetimi devralabilir. Farklı cihazlar/tarayıcı profilleri bu kilidi paylaşmaz.
+- Kalıcı kapatma yalnızca kullanıcı **Durdur** düğmesine basınca yapılır. Sonraki yenilemelerde ve sekmelerde bu karar korunur. Yeniden açmak için bir kez **Otomatiği aç** kullanılır.
+- İlk kurulumda otomatik devreye girer; her tur onay istemez. Köy ekranına geçmek döngüyü kapatmaz. Süre dolunca yağma listesine döner.
+- En az 5 dakika + 2 saniye aralık korunur. Site daha uzun bir sayaç gösterirse o da beklenir.
+- Gönderim sonucu için en fazla 60 saniye izleme yapılır. Yeni bir site hata bildirimi görülürse reddedilen deneme olarak kaydedilir. Site sayacı veya yeni bir kabul bildirimi görülürse site kabulü kaydedilir.
+- Sonuç belirsiz kalırsa başarılı sayılmaz. Otomatik açık kalır ve 5 dakikalık aralık dolunca sonraki tur kendisi denenir; hemen art arda göndermez. Panelde belirsiz ve reddedilen denemeler ayrı gösterilir.
+- Düğme geçici pasifse/bulunamazsa veya seçim tamamlanmazsa genellikle 30 saniye sonra tekrar kontrol edilir. Bekleme aralığı dolmadan gönderim yapılmaz. Geç tamamlanan checkbox seçimi için 10 saniye beklenir.
+- Saat:dakika:saniye ve dakika:saniye sayaçları okunur. Hepsini Seç kutusu gözlenen kalıcı ID biçiminden ve etiketinden bulunur.
+- Giriş, CAPTCHA ve erişim engeli varken gönderim yapılmaz. Kullanıcı giriş/doğrulamayı tamamladığında, sonraki otomatik kontrolde devam edilir. CAPTCHA çözülmez ve engeller atlatılmaz.
+- Yalnızca tek açık yağma listesi desteklenir. Birden fazla liste varsa bekler; tek liste kalınca otomatik devam eder.
+- Aynı tarayıcıdaki tek sekme gönderimleri yönetir. Diğerleri bekler. Farklı cihaz/tarayıcı profilleri bu kilidi paylaşmaz.
+- Firefox'a dönüşte görünürlük, odak, sayfa geri yükleme ve bağlantının gelmesi olaylarında hemen tekrar kontrol yapılır. Kaçırılan turları arka arkaya telafi etmez.
 
-## Panel
+## Panel ve doğrulama sınırı
 
-Otomatik durum, sonraki gönderime kalan dakika:saniye, son hedef sayısı, son deneme ve doğrulama zamanı, doğrulanan tur sayısı, Kontrol et düğmesi ve işlem kayıtları bulunur. Son 100 kayıt saklanır; panel son 30 kaydı gösterir.
+Sonraki gönderime kalan dakika:saniye, yeniden kontrol süresi, son deneme, site kabulü, belirsiz/reddedilen denemeler, işlem kayıtları ve **Kontrol et** tanısı bulunur.
 
-Doğrulanan tur, gönderimden sonra sitenin bekleme sayacının başlamasıdır. Askerlerin ulaştığı veya bütün hedeflere başarıyla gönderildiği yalnız bu sayaçla kanıtlanamaz. Ganimet miktarı raporlardan henüz okunmuyor.
+Site kabulü, sitenin sayacı veya kabul bildirimidir. Bu, her hedefe tam asker gönderildiğini, askerlerin ulaştığını ya da ganimet getirdiğini kanıtlamaz. Askeri Üs hareketleri ve dönüş raporları otomatik okunmuyor. Ganimet raporlardan henüz hesaplanmıyor.
 
-Eksik seçimde, tanınan giriş/CAPTCHA/erişim engeli ekranında ve doğrulanamayan gönderimde hata yazarak durur. Android ekran kapalıyken tarayıcıyı askıya alabilir; kesintisiz çalışma garantisi yoktur. Bot tespitini aşma veya hesap cezasından korunma garantisi yoktur.
+## Firefox Android
 
-## Doğrulama
+Oyun sekmesini ve uygulamayı ön planda tut. Firefox Android arka plan zamanlayıcılarını geciktirebilir, sekmeyi tamamen boşaltabilir. Betik işletim sisteminin bu kısıtlamasını kaldıramaz; ekran kapalıyken kesintisiz 5 dakika garantisi yoktur. Otomatik açık ayarı korunur ve sayfa yeniden çalışınca kaldığı kaydı kontrol eder.
 
-9 Kasım 2026, v1.3.0: JavaScript sözdizimi kontrolü ve canlı DOM kopyası üzerinde 18 yerel jsdom senaryosu geçti. Otomatik ilk tur, süre dolunca ikinci/üçüncü tur, azalan sayaç, kalıcı Durdur, yeniden açma, yenilemede beklemenin korunması, köyden otomatik listeye geçiş, iki sekmede tek gönderim ve devralma, site sayacına uyma, doğrulanamayan gönderimde durma, eksik seçim, giriş/CAPTCHA, çoklu liste ve bozuk kayıt kontrol edildi. Saat, navigasyon, kilit ve site yanıtları test ortamında simüle edildi.
+[MDN: arka plan zamanlayıcıları](https://developer.mozilla.org/en-US/docs/Web/API/Window/setTimeout#timeouts_in_inactive_tabs)
 
-Önceki v1.1 sürümünde canlı hesapta 98 hedeflik bir gönderim ve site sayacı 20:18:40–20:18:42 arasında gözlendi. **v1.3.0 için canlı veya Android uçtan uca doğrulama henüz yapılmadı.**
+Bot tespitini aşma veya hesap cezasından korunma garantisi yoktur.
+
+## Test durumu
+
+9 Kasım 2026: Son dosya üzerinde sözdizimi kontrolü ve 21 hedefli yerel jsdom regresyon testi geçti. Özellikle hata sonrası yeniden düğmeye basmadan devam, reddedilen/belirsiz gönderim, sayaç biçimleri, geç gelen seçim, geçici pasif/kayıp düğme, CAPTCHA/girişten sonra devam, yenileme ve uyanma olayları test edildi. Saat, site yanıtı ve navigasyon simüle edildi.
+
+Geliştirme sırasında 20 senaryo türünden 10.000 parametreli simülasyon da geçti; ardından hata metni ayrımı ve metadata için küçük ekler yapılıp 21 hedefli test son dosyada tekrarlandı. Eski v1.3.0 için önceki 10.000 rapor bu sürümün kanıtı değildir.
+
+Yerel Firefox 153 açılabildi ancak test sayfası açılırken yanıt alınamadı; bu deneme başarılı tarayıcı testi sayılmadı. **Gerçek Android cihazında Tampermonkey ve canlı oyunla uçtan uca test henüz yapılmadı.**
