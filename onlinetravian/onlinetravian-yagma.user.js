@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OnlineTravian Yağma Yardımcısı
 // @namespace    local.onlinetravian.yagma
-// @version      1.2.0
+// @version      1.2.1
 // @description  Mevcut tek yağma listesini en az 5 dakika arayla çalıştırır; belirsizlikte durur.
 // @match        https://100000.onlinetravian.com/*
 // @grant        none
@@ -34,7 +34,7 @@
   const panel = document.createElement('section');
   panel.id = 'ot-raid-panel';
   panel.style.cssText = 'position:fixed;bottom:12px;left:12px;z-index:2147483647;width:320px;max-width:90vw;max-height:75vh;overflow:auto;padding:14px;background:#17232c;color:white;border:2px solid #81c784;border-radius:12px;font:14px/1.5 sans-serif;box-shadow:0 2px 15px #0008';
-  panel.innerHTML = '<strong>Yağma paneli · v1.2.0</strong><div id="ot-raid-status" style="margin:8px 0">Hazır — başlatmanı bekliyor.</div><div id="ot-raid-stats" style="padding:8px;background:#243843;border-radius:8px;margin-bottom:8px"></div><button type="button" id="ot-raid-start">5 dk döngü başlat</button><button type="button" id="ot-raid-once">Tek tur gönder</button> <button type="button" id="ot-raid-stop">Durdur</button><button type="button" id="ot-raid-check">Kontrol et</button><div id="ot-raid-heartbeat" style="font-size:12px"></div><details open><summary style="margin-top:10px;cursor:pointer">İşlem kayıtları</summary><div id="ot-raid-log" style="max-height:160px;overflow:auto;font-size:12px"></div></details><div style="font-size:11px;margin-top:8px">Bu sekmeyi açık tut. Android ekranı kapatınca çalışmayı askıya alabilir.</div>';
+  panel.innerHTML = '<strong>Yağma paneli · v1.2.1</strong><div id="ot-raid-status" style="margin:8px 0">Hazır — başlatmanı bekliyor.</div><div id="ot-raid-stats" style="padding:8px;background:#243843;border-radius:8px;margin-bottom:8px"></div><button type="button" id="ot-raid-start">5 dk döngü başlat</button><button type="button" id="ot-raid-once">Tek tur gönder</button> <button type="button" id="ot-raid-stop">Durdur</button><button type="button" id="ot-raid-check">Kontrol et</button><div id="ot-raid-countdown" style="padding:10px 0;font-size:18px;font-weight:bold"></div><div id="ot-raid-heartbeat" style="font-size:12px"></div><details open><summary style="margin-top:10px;cursor:pointer">İşlem kayıtları</summary><div id="ot-raid-log" style="max-height:160px;overflow:auto;font-size:12px"></div></details><div style="font-size:11px;margin-top:8px">Bu sekmeyi açık tut. Android ekranı kapatınca çalışmayı askıya alabilir.</div>';
   (document.body || document.documentElement).append(panel);
   const css = document.createElement('style');
   css.textContent = '#ot-raid-panel{display:block!important;visibility:visible!important;opacity:1!important;position:fixed!important;top:12px!important;right:12px!important;bottom:auto!important;left:auto!important;z-index:2147483647!important;box-sizing:border-box!important;color:white!important;background:#17232c!important}#ot-raid-panel button{display:inline-block!important;width:auto!important;height:auto!important;background:#e7f5ec!important;color:#102a1c!important;font:600 14px sans-serif!important;padding:10px!important;margin:4px!important;float:none!important;position:static!important}';
@@ -61,7 +61,17 @@
     data.logs = [...(data.logs || []), {time: Date.now(), message}].slice(-100);
     write(data); render();
   };
-  const show = message => { status.textContent = message; try { render(); } catch(e) { status.textContent += ' | Kayıt hatası: ' + e.message; } };
+  const updateCountdown = () => {
+    const output = panel.querySelector('#ot-raid-countdown');
+    try {
+      const remaining = Math.max(0, Math.ceil((read().next - Date.now()) / 1000));
+      const clock = String(Math.floor(remaining / 60)).padStart(2,'0') + ':' + String(remaining % 60).padStart(2,'0');
+      output.textContent = running()
+        ? (remaining ? 'Sonraki gönderime kalan: ' + clock : 'Gönderim zamanı geldi — kontroller bekleniyor')
+        : (remaining ? 'Durduruldu · Bekleme: ' + clock : 'Durduruldu · Başlatmanı bekliyor');
+    } catch (_) { output.textContent = 'Sayaç okunamadı — Kontrol et düğmesine bas.'; }
+  };
+  const show = message => { status.textContent = message; updateCountdown(); try { render(); } catch(e) { status.textContent += ' | Kayıt hatası: ' + e.message; } };
   const stop = message => { try { sessionStorage.removeItem(PREFIX+'enabled-v12'); } catch (_) {} show(message); try { log(message); } catch (_) {} };
   const blocked = () => {
     if ([...document.querySelectorAll('input[type="password"]')].some(visible)) return 'Oturum kapandı. Giriş yapıp tekrar Başlat’a bas.';
@@ -168,7 +178,9 @@
     } catch(e) { show('Kontrol hatası: '+e.message); }
   };
   try { render(); } catch(e) { show('Kayıt okunamadı: '+e.message); }
+  updateCountdown();
   setInterval(() => {
+    updateCountdown();
     panel.querySelector('#ot-raid-heartbeat').textContent='Panel çalışıyor · '+stamp(Date.now());
     tick();
   },1000);
