@@ -1,0 +1,125 @@
+import asyncio
+import getpass
+import os
+import re
+from pathlib import Path
+
+from playwright.async_api import async_playwright
+
+BASE = "https://100000.onlinetravian.com"
+PROFILE = Path("travian-firefox-profile").resolve()
+
+# 0: Tek tur. Örneğin 300: Her turdan sonra 300 saniye bekle.
+INTERVAL = int(os.environ.get("BOT_INTERVAL", "0"))
+
+
+async def login(page):
+    await page.goto(f"{BASE}/dorf1.php", wait_until="domcontentloaded")
+
+    password = page.locator('input[type="password"]:visible')
+
+    if not await password.count():
+        # Giriş yapılmışsa askeri üs bağlantısını bekle.
+        await page.locator('a[href="build.php?id=39"]').first.wait_for(
+            state="visible", timeout=20000
+        )
+        return
+
+    username = page.locator(
+        'input[name="name"]:visible, '
+        'input[name="username"]:visible, '
+        'input[autocomplete="username"]:visible'
+    )
+
+    if await username.count() != 1:
+        raise RuntimeError(
+            "Girişte kullanıcı adı alanı doğrulanamadı. "
+            "Giriş ekranındaki alanlara göre kod güncellenmeli."
+        )
+
+    secret = getpass.getpass("Travian şifren: ")
+    await username.fill("Operasyon")
+    await password.fill(secret)
+    del secret
+
+    # Şifre alanındayken Enter ile giriş formunu gönder.
+    await password.press("Enter")
+
+    await page.locator('a[href="build.php?id=39"]').first.wait_for(
+        state="visible", timeout=60000
+    )
+    print("Giriş tamamlandı.")
+
+
+async def raid(page):
+    await page.goto(f"{BASE}/dorf1.php", wait_until="domcontentloaded")
+
+    await page.locator('a[href="build.php?id=39"]').first.click()
+
+    raid_link = page.get_by_role("link", name="Yağma Listesi", exact=True)
+    await raid_link.wait_for(state="visible")
+    await raid_link.click()
+
+    select_all = page.locator("#raidListMarkAll1")
+    await select_all.wait_for(state="visible")
+    await select_all.check()
+
+    if not await select_all.is_checked():
+        raise RuntimeError("Hepsini Seç kutusu işaretlenemedi.")
+
+    start = page.get_by_role(
+        "button", name="Saldırı başlat", exact=True
+    )
+
+    if await start.count() != 1:
+        raise RuntimeError("Saldırı düğmesi tek olarak bulunamadı.")
+
+    # Bir hata olursa tekrar tıklanmaz; çift gönderimi önler.
+    await start.click()
+    await page.wait_for_timeout(3000)
+    await page.screenshot(path="son-durum.png", full_page=True)
+
+    print(
+        "Saldırı başlat düğmesine basıldı. "
+        "Sonuç görüntüsü: son-durum.png"
+    )
+
+
+async def main():
+    async with async_playwright() as p:
+        context = await p.firefox.launch_persistent_context(
+            user_data_dir=str(PROFILE),
+            headless=True,
+        )
+        context.set_default_timeout(30000)
+        page = context.pages[0] if context.pages else await context.new_page()
+
+        try:
+            await login(page)
+
+            while True:
+                await raid(page)
+
+                if INTERVAL <= 0:
+                    break
+
+                print(f"{INTERVAL} saniye bekleniyor.")
+                await asyncio.sleep(INTERVAL)
+
+        except Exception as exc:
+            print(f"Bot durdu: {exc}")
+            try:
+                await page.screenshot(path="hata.png", full_page=True)
+                print("Ekran görüntüsü: hata.png")
+            except Exception:
+                pass
+            raise
+        finally:
+            await context.close()
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nBot kapatıldı.")
